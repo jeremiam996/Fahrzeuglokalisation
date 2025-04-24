@@ -59,18 +59,14 @@ platz_grid = {f"{r}{s}": None for r in PARKPLATZ_REIHEN for s in PARKPLATZ_SPALT
 for _, row in df.iterrows():
     platz_grid[row["Standort"]] = row["Fahrzeug"]
 
-cols = st.columns(len(PARKPLATZ_SPALTEN))
-for i, r in enumerate(PARKPLATZ_REIHEN):
-    with st.container():
-        row_cols = st.columns(len(PARKPLATZ_SPALTEN))
-        for j, s in enumerate(PARKPLATZ_SPALTEN):
-            platz = f"{r}{s}"
-            if platz_grid[platz]:
-                row_cols[j].button(f"{platz}\\n '🚘' {platz_grid[platz]}", disabled=True)
-{platz_grid[platz]}", disabled=True)
-            else:
-                row_cols[j].button(f"{platz}\\n🟩 Frei", disabled=True)
-🟩 Frei", disabled=True)
+for r in PARKPLATZ_REIHEN:
+    row_cols = st.columns(len(PARKPLATZ_SPALTEN))
+    for j, s in enumerate(PARKPLATZ_SPALTEN):
+        platz = f"{r}{s}"
+        if platz_grid[platz]:
+            row_cols[j].button(f"{platz}\n🚘 {platz_grid[platz]}", disabled=True)
+        else:
+            row_cols[j].button(f"{platz}\n🟩 Frei", disabled=True)
 
 # Fortschrittsübersicht
 st.header("📊 Fortschritt aller Fahrzeuge")
