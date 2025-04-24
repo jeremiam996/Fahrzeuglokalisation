@@ -72,7 +72,6 @@ for r in PARKPLATZ_REIHEN:
             row_cols[j].button(f"{platz}\\n🆕 {fahrzeug}", disabled=True)
         else:
             row_cols[j].button(f"{platz}\\n🚘 {fahrzeug}", disabled=True)
-
         else:
             row_cols[j].button(f"{platz}\n🟩 Frei", disabled=True)
 
