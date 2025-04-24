@@ -67,7 +67,7 @@ for i, r in enumerate(PARKPLATZ_REIHEN):
             platz = f"{r}{s}"
             if platz_grid[platz]:
                 row_cols[j].button(f"{platz}\\n '🚘' {platz_grid[platz]}", disabled=True)
-🚘 {platz_grid[platz]}", disabled=True)
+'🚘' {platz_grid[platz]}", disabled=True)
             else:
                 row_cols[j].button(f"{platz}\\n🟩 Frei", disabled=True)
 🟩 Frei", disabled=True)
