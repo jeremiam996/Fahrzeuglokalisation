@@ -46,7 +46,7 @@ with st.form("add_form"):
         standort = st.selectbox("Standort wählen", [f"{r}{s}" for r in PARKPLATZ_REIHEN for s in PARKPLATZ_SPALTEN if f"{r}{s}" not in belegte_plaetze])
     else:
         standort = vorgeschlagen
-    fortschritt = st.selectbox("Fortschrittsstatus", FORTSCHRITTSSTUFEN)
+    fortschritt = st.selectbox("Fortschrittsstatus (optional)", [""] + FORTSCHRITTSSTUFEN)
     submitted = st.form_submit_button("🚗 Hinzufügen")
     if submitted and fahrzeug:
         df.loc[len(df)] = [fahrzeug, standort, fortschritt, "aktiv"]
@@ -56,18 +56,47 @@ with st.form("add_form"):
 # Parkplatzübersicht
 st.header("🅿️ Parkplatzbelegung")
 platz_grid = {f"{r}{s}": None for r in PARKPLATZ_REIHEN for s in PARKPLATZ_SPALTEN}
+status_grid = {}
+
 for _, row in df.iterrows():
     platz_grid[row["Standort"]] = row["Fahrzeug"]
+    status_grid[row["Standort"]] = row["Fortschritt"]
 
 for r in PARKPLATZ_REIHEN:
     row_cols = st.columns(len(PARKPLATZ_SPALTEN))
     for j, s in enumerate(PARKPLATZ_SPALTEN):
         platz = f"{r}{s}"
-        if platz_grid[platz]:
-            row_cols[j].button(f"{platz}\n🚘 {platz_grid[platz]}", disabled=True)
+        fahrzeug = platz_grid[platz]
+        status = status_grid.get(platz, "")
+        if fahrzeug:
+            if status == "":
+                row_cols[j].button(f"{platz}\n🆕 {fahrzeug}", disabled=True)
+            else:
+                row_cols[j].button(f"{platz}\n🚘 {fahrzeug}", disabled=True)
         else:
             row_cols[j].button(f"{platz}\n🟩 Frei", disabled=True)
 
-# Fortschrittsübersicht
-st.header("📊 Fortschritt aller Fahrzeuge")
+# Fortschritt bearbeiten
+st.header("✏️ Fortschritt bearbeiten")
+if not df.empty:
+    for index, row in df.iterrows():
+        col1, col2, col3 = st.columns([3, 3, 4])
+        with col1:
+            st.text(row["Fahrzeug"])
+        with col2:
+            new_status = st.selectbox(
+                f"Status ändern ({row['Fahrzeug']})",
+                [""] + FORTSCHRITTSSTUFEN,
+                index=([""] + FORTSCHRITTSSTUFEN).index(row["Fortschritt"]) if row["Fortschritt"] in FORTSCHRITTSSTUFEN else 0,
+                key=f"select_{index}"
+            )
+        with col3:
+            if st.button("💾 Speichern", key=f"save_{index}"):
+                df.at[index, "Fortschritt"] = new_status
+                df.to_csv(DATA_PATH, index=False)
+                st.success(f"Status von {row['Fahrzeug']} wurde aktualisiert.")
+                st.experimental_rerun()
+
+# Übersicht
+st.header("📊 Übersicht aller Fahrzeuge")
 st.dataframe(df)
