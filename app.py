@@ -68,11 +68,11 @@ for r in PARKPLATZ_REIHEN:
         platz = f"{r}{s}"
         fahrzeug = platz_grid[platz]
         status = status_grid.get(platz, "")
-        if fahrzeug:
-            if status == "":
-                row_cols[j].button(f"{platz}\n🆕 {fahrzeug}", disabled=True)
-            else:
-                row_cols[j].button(f"{platz}\n🚘 {fahrzeug}", disabled=True)
+        if status in ["", "None", None]:
+            row_cols[j].button(f"{platz}\\n🆕 {fahrzeug}", disabled=True)
+        else:
+            row_cols[j].button(f"{platz}\\n🚘 {fahrzeug}", disabled=True)
+
         else:
             row_cols[j].button(f"{platz}\n🟩 Frei", disabled=True)
 
