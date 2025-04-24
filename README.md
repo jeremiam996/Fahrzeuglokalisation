@@ -1,1 +1,1 @@
-Erweiterte Version mit Bearbeitungsfunktion und Statusanzeige für neue Fahrzeuge.
+Finale Version mit Korrektur der Statusanzeige für 'None' und leere Werte.
