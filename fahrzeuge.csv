@@ -1,1 +1,4 @@
-Fahrzeug,Standort,Fortschritt,Status
+Modell,Kennzeichen,Status,Parkplatz
+Golf,HH-AB1234,angekommen,A1
+Tiguan,HH-XY9876,in Arbeit,B2
+Polo,HH-RT5678,fertig,C3
