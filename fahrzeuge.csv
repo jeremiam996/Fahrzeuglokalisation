@@ -1,4 +1,4 @@
-Modell,Kennzeichen,Status,Parkplatz
-Golf,HH-AB1234,angekommen,A1
-Tiguan,HH-XY9876,in Arbeit,B2
-Polo,HH-RT5678,fertig,C3
+Modell,Kennzeichen,Ankunftsdatum,Status,Parkplatz,Geplanter Tag
+Golf,HH-AB1234,2025-04-27,angekommen,A1,
+Tiguan,HH-XY9876,2025-04-26,in Arbeit,B2,
+Polo,HH-RT5678,2025-04-25,fertig,C3,
