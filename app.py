@@ -63,26 +63,40 @@ else:
             df.to_csv(DATA_PATH, index=False)
             st.success("Fahrzeug gespeichert.")
 
-# ---- Excel Import ----
-st.subheader("Excelimport")
-uploaded = st.file_uploader("Exceldatei hochladen", type=["xlsx", "csv"])
-if uploaded:
-    ext = uploaded.name.split(".")[-1]
-    if ext == "xlsx":
-        imp = pd.read_excel(uploaded)
-    else:
-        imp = pd.read_csv(uploaded)
-    for step in ARBEITSSCHRITTE:
-        imp[step] = False
-    imp["Geplanter Tag"] = ""
-    df = pd.concat([df, imp], ignore_index=True)
-    df.to_csv(DATA_PATH, index=False)
-    st.success("Import erfolgreich.")
+# ---- ADMINFUNKTIONEN ----
+if st.session_state.logged_in:
+    st.subheader("🔐 Admin: Excelimport & Mitarbeitereinstellung")
 
-# ---- Mitarbeiterauswahl & Planung ----
-st.sidebar.title("Tagesplanung")
-mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende", min_value=1, max_value=50, value=6)
-kapazitaet = mitarbeiter * STD_PRO_MITARBEITER
+    # Excelimport
+    uploaded = st.file_uploader("Exceldatei hochladen", type=["xlsx", "csv"])
+    if uploaded:
+        try:
+            ext = uploaded.name.split(".")[-1]
+            if ext == "xlsx":
+                imp = pd.read_excel(uploaded)
+            else:
+                imp = pd.read_csv(uploaded)
+
+            # Fehlende Spalten ergänzen (z. B. Arbeitsschritte)
+            for step in ARBEITSSCHRITTE:
+                if step not in imp.columns:
+                    imp[step] = False
+            if "Geplanter Tag" not in imp.columns:
+                imp["Geplanter Tag"] = ""
+
+            df = pd.concat([df, imp], ignore_index=True)
+            df.to_csv(DATA_PATH, index=False)
+            st.success("Import erfolgreich.")
+        except Exception as e:
+            st.error("Fehler beim Import. Bitte prüfe die Datei.")
+            st.exception(e)
+
+    # Mitarbeitereingabe
+    st.sidebar.title("Tagesplanung (Admin)")
+    mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende", min_value=1, max_value=50, value=6)
+else:
+    # Standardwert für Mitarbeitende bei Nutzer ohne Adminrechte
+    mitarbeiter = 6
 
 st.subheader("Offene Fahrzeuge & Arbeitsschritte")
 offen = df[df["Status"] != "fertig"].copy()
