@@ -21,7 +21,7 @@ if "logged_in" not in st.session_state:
 
 def login():
     with st.form("Login"):
-        st.subheader("Admin Login")
+        st.subheader("🔑 Admin Login")
         user = st.text_input("Benutzername")
         pw = st.text_input("Passwort", type="password")
         submitted = st.form_submit_button("Login")
@@ -31,16 +31,17 @@ def login():
             else:
                 st.error("Falsche Zugangsdaten.")
 
-# ---- Daten laden ----
+# ---- Daten laden oder anlegen ----
 if os.path.exists(DATA_PATH):
     df = pd.read_csv(DATA_PATH)
 else:
     df = pd.DataFrame(columns=["Modell", "Kennzeichen", "Ankunftsdatum", "Status", "Parkplatz", "Geplanter Tag"] + list(ARBEITSSCHRITTE.keys()))
     df.to_csv(DATA_PATH, index=False)
 
+# ---- Titel ----
 st.title("Fahrzeuglokalisierung & Tagesplanung")
 
-# ---- Admin Login für Fahrzeug hinzufügen ----
+# ---- Login-Bereich ----
 if not st.session_state.logged_in:
     login()
 else:
@@ -63,9 +64,9 @@ else:
             df.to_csv(DATA_PATH, index=False)
             st.success("Fahrzeug gespeichert.")
 
-# ---- ADMINFUNKTIONEN ----
-if st.session_state.logged_in:
-    st.subheader("🔐 Admin: Excelimport & Mitarbeitereinstellung")
+# ---- Adminfunktionen: Excelimport & Mitarbeitereingabe ----
+if st.session_state.get("logged_in", False):
+    st.subheader("🔐 Admin: Import & Mitarbeitereinstellungen")
 
     # Excelimport
     uploaded = st.file_uploader("Exceldatei hochladen", type=["xlsx", "csv"])
@@ -77,7 +78,6 @@ if st.session_state.logged_in:
             else:
                 imp = pd.read_csv(uploaded)
 
-            # Fehlende Spalten ergänzen (z. B. Arbeitsschritte)
             for step in ARBEITSSCHRITTE:
                 if step not in imp.columns:
                     imp[step] = False
@@ -88,27 +88,27 @@ if st.session_state.logged_in:
             df.to_csv(DATA_PATH, index=False)
             st.success("Import erfolgreich.")
         except Exception as e:
-            st.error("Fehler beim Import. Bitte prüfe die Datei.")
+            st.error("Fehler beim Import.")
             st.exception(e)
 
-    # Mitarbeitereingabe
+    # Mitarbeitereinstellung
     st.sidebar.title("Tagesplanung (Admin)")
     mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende", min_value=1, max_value=50, value=6)
 else:
-    # Standardwert für Mitarbeitende bei Nutzer ohne Adminrechte
     mitarbeiter = 6
+    st.sidebar.markdown("👷 Tagesplanung: Standardmäßig 6 Mitarbeitende (kein Admin eingeloggt)")
 
-st.subheader("Offene Fahrzeuge & Arbeitsschritte")
+# ---- Tagesplanung berechnen ----
+kapazitaet = mitarbeiter * STD_PRO_MITARBEITER
 offen = df[df["Status"] != "fertig"].copy()
 startdatum = datetime.date.today()
-gesamt_aufwand = 0
 tag_aufwand = 0
 aktueller_tag = startdatum
 
 for idx, row in offen.iterrows():
     fzg_aufwand = 0
     for step, dauer in ARBEITSSCHRITTE.items():
-        if not row[step]:
+        if step in row and not row[step]:
             fzg_aufwand += dauer
     if tag_aufwand + fzg_aufwand > kapazitaet:
         aktueller_tag += datetime.timedelta(days=1)
@@ -116,9 +116,8 @@ for idx, row in offen.iterrows():
     df.at[idx, "Geplanter Tag"] = aktueller_tag
     tag_aufwand += fzg_aufwand
 
-# ---- Status- und Tages-Arbeitsschritte bearbeiten ----
-st.subheader("Tagesbearbeitung – heute geplante Arbeitsschritte")
-
+# ---- Tagesbearbeitung – Fahrzeuge mit geplanten Aufgaben heute ----
+st.subheader("Tagesbearbeitung – heute geplante Fahrzeuge")
 heute = datetime.date.today()
 for idx, row in df.iterrows():
     geplant = pd.to_datetime(row["Geplanter Tag"]).date() if row["Geplanter Tag"] else None
@@ -131,11 +130,22 @@ for idx, row in df.iterrows():
                 key=f"status_{idx}"
             )
             st.markdown("**Heute geplante Schritte:**")
+            offene_schritte = []
+            erledigte_schritte = []
             for step in ARBEITSSCHRITTE:
-                if not row[step]:  # nur offene Schritte anzeigen
-                    df.at[idx, step] = st.checkbox(f"{step}", key=f"{step}_{idx}")
+                if step in row and row[step]:
+                    erledigte_schritte.append(step)
+                elif step in row:
+                    offene_schritte.append(step)
+            for step in offene_schritte:
+                df.at[idx, step] = st.checkbox(f"{step}", key=f"{step}_{idx}")
+            gesamt = len(ARBEITSSCHRITTE)
+            erledigt = len([s for s in ARBEITSSCHRITTE if s in row and row[s]])
+            st.progress(erledigt / gesamt)
+            st.caption(f"{erledigt} von {gesamt} Arbeitsschritten erledigt")
 
-# ---- Anzeige & Speichern ----
+# ---- Gesamtübersicht ----
 st.subheader("Gesamtübersicht")
 st.dataframe(df)
 df.to_csv(DATA_PATH, index=False)
+
