@@ -3,74 +3,125 @@ import pandas as pd
 import os
 import datetime
 
-# Datenpfad
-DATA_PATH = 'fahrzeuge.csv'
+# ---- Konfiguration ----
+DATA_PATH = "fahrzeuge.csv"
+MODELLE = ["Golf", "Tiguan", "Polo", "Passat", "T-Roc"]
+ARBEITSSCHRITTE = {
+    "Öl ablassen": 1,
+    "Batterie entfernen": 1,
+    "Flüssigkeiten absaugen": 1.5,
+    "Teile ausbauen": 2,
+    "Dokumentation": 1
+}
+STD_PRO_MITARBEITER = 7
 
-# Parkplatzraster A1-E9 (45 Parkplätze)
-parkplaetze = [f"{chr(65 + r)}{c+1}" for r in range(5) for c in range(9)]  # 5 Reihen, 9 Spalten
+# ---- Session-Login ----
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-# Fahrzeugdaten laden oder neu erstellen
+def login():
+    with st.form("Login"):
+        st.subheader("Admin Login")
+        user = st.text_input("Benutzername")
+        pw = st.text_input("Passwort", type="password")
+        submitted = st.form_submit_button("Login")
+        if submitted:
+            if user == "admin" and pw == "passwort123":
+                st.session_state.logged_in = True
+            else:
+                st.error("Falsche Zugangsdaten.")
+
+# ---- Daten laden ----
 if os.path.exists(DATA_PATH):
     df = pd.read_csv(DATA_PATH)
 else:
-    df = pd.DataFrame(columns=["Modell", "Kennzeichen", "Ankunftsdatum", "Status", "Parkplatz", "Geplanter Tag"])
+    df = pd.DataFrame(columns=["Modell", "Kennzeichen", "Ankunftsdatum", "Status", "Parkplatz", "Geplanter Tag"] + list(ARBEITSSCHRITTE.keys()))
     df.to_csv(DATA_PATH, index=False)
 
 st.title("Fahrzeuglokalisierung & Tagesplanung")
 
-# Fahrzeug hinzufügen
-st.subheader("Neues Fahrzeug erfassen")
-with st.form("fahrzeug_form"):
-    modell = st.text_input("Modell")
-    kennzeichen = st.text_input("Kennzeichen")
-    ankunftsdatum = st.date_input("Ankunftsdatum", value=datetime.date.today())
-    status = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"])
-    freie_plaetze = sorted(list(set(parkplaetze) - set(df["Parkplatz"].dropna())))
-    parkplatz = st.selectbox("Parkplatz", freie_plaetze)
-    submitted = st.form_submit_button("Fahrzeug speichern")
+# ---- Admin Login für Fahrzeug hinzufügen ----
+if not st.session_state.logged_in:
+    login()
+else:
+    st.subheader("Neues Fahrzeug hinzufügen (nur Admin)")
+    with st.form("add_vehicle"):
+        modell = st.selectbox("Modell", MODELLE)
+        kennz = st.text_input("Kennzeichen")
+        ankunft = st.date_input("Ankunftsdatum", value=datetime.date.today())
+        status = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"])
+        parkplatz = st.text_input("Parkplatz (z. B. A1)")
+        submitted = st.form_submit_button("Fahrzeug speichern")
+        if submitted:
+            new_row = {
+                "Modell": modell, "Kennzeichen": kennz, "Ankunftsdatum": ankunft,
+                "Status": status, "Parkplatz": parkplatz, "Geplanter Tag": ""
+            }
+            for step in ARBEITSSCHRITTE:
+                new_row[step] = False
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            df.to_csv(DATA_PATH, index=False)
+            st.success("Fahrzeug gespeichert.")
 
-    if submitted:
-        new_entry = pd.DataFrame([[modell, kennzeichen, ankunftsdatum, status, parkplatz, ""]],
-                                 columns=["Modell", "Kennzeichen", "Ankunftsdatum", "Status", "Parkplatz", "Geplanter Tag"])
-        df = pd.concat([df, new_entry], ignore_index=True)
-        df.to_csv(DATA_PATH, index=False)
-        st.success("Fahrzeug erfolgreich gespeichert.")
+# ---- Excel Import ----
+st.subheader("Excelimport")
+uploaded = st.file_uploader("Exceldatei hochladen", type=["xlsx", "csv"])
+if uploaded:
+    ext = uploaded.name.split(".")[-1]
+    if ext == "xlsx":
+        imp = pd.read_excel(uploaded)
+    else:
+        imp = pd.read_csv(uploaded)
+    for step in ARBEITSSCHRITTE:
+        imp[step] = False
+    imp["Geplanter Tag"] = ""
+    df = pd.concat([df, imp], ignore_index=True)
+    df.to_csv(DATA_PATH, index=False)
+    st.success("Import erfolgreich.")
 
-# Mitarbeiteranzahl für Tagesplanung
+# ---- Mitarbeiterauswahl & Planung ----
 st.sidebar.title("Tagesplanung")
-mitarbeiter = st.sidebar.number_input("Mitarbeiteranzahl", min_value=1, max_value=20, value=6)
-stunden_pro_mitarbeiter = 7
-gesamtstunden = mitarbeiter * stunden_pro_mitarbeiter
+mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende", min_value=1, max_value=50, value=6)
+kapazitaet = mitarbeiter * STD_PRO_MITARBEITER
 
-# Annahme: 6,5h für komplette Bearbeitung eines Fahrzeugs
-fahrzeuge_pro_tag = gesamtstunden / 6.5
-st.sidebar.markdown(f"**Kapazität:** {fahrzeuge_pro_tag:.1f} Fahrzeuge/Tag")
+st.subheader("Offene Fahrzeuge & Arbeitsschritte")
+offen = df[df["Status"] != "fertig"].copy()
+startdatum = datetime.date.today()
+gesamt_aufwand = 0
+tag_aufwand = 0
+aktueller_tag = startdatum
 
-# Parkplatzübersicht
-st.subheader("Parkplatzbelegung")
-platz_status = {platz: "frei" for platz in parkplaetze}
-for _, row in df.iterrows():
-    platz_status[row["Parkplatz"]] = row["Status"]
+for idx, row in offen.iterrows():
+    fzg_aufwand = 0
+    for step, dauer in ARBEITSSCHRITTE.items():
+        if not row[step]:
+            fzg_aufwand += dauer
+    if tag_aufwand + fzg_aufwand > kapazitaet:
+        aktueller_tag += datetime.timedelta(days=1)
+        tag_aufwand = 0
+    df.at[idx, "Geplanter Tag"] = aktueller_tag
+    tag_aufwand += fzg_aufwand
 
-for r in range(5):
-    cols = st.columns(9)
-    for c in range(9):
-        platz = f"{chr(65 + r)}{c+1}"
-        status = platz_status.get(platz, "frei")
-        farbe = "✅" if status == "fertig" else ("🛠️" if status == "in Arbeit" else ("❌" if status != "frei" else "🟩"))
-        cols[c].markdown(f"**{platz}** {farbe}")
+# ---- Status- und Tages-Arbeitsschritte bearbeiten ----
+st.subheader("Tagesbearbeitung – heute geplante Arbeitsschritte")
 
-# Tagesplanung automatisch
-st.subheader("Tagesplanungsvorschlag")
-df_offen = df[df["Status"] != "fertig"]
-df_offen = df_offen.copy()
-start_datum = datetime.date.today()
+heute = datetime.date.today()
+for idx, row in df.iterrows():
+    geplant = pd.to_datetime(row["Geplanter Tag"]).date() if row["Geplanter Tag"] else None
+    if geplant == heute and row["Status"] != "fertig":
+        with st.expander(f"{row['Modell']} - {row['Kennzeichen']} ({row['Parkplatz']})"):
+            df.at[idx, "Status"] = st.selectbox(
+                "Status",
+                ["angekommen", "in Arbeit", "fertig"],
+                index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]),
+                key=f"status_{idx}"
+            )
+            st.markdown("**Heute geplante Schritte:**")
+            for step in ARBEITSSCHRITTE:
+                if not row[step]:  # nur offene Schritte anzeigen
+                    df.at[idx, step] = st.checkbox(f"{step}", key=f"{step}_{idx}")
 
-for i, idx in enumerate(df_offen.index):
-    geplanter_tag = start_datum + datetime.timedelta(days=i // max(1, int(fahrzeuge_pro_tag)))
-    df.at[idx, "Geplanter Tag"] = geplanter_tag
-
+# ---- Anzeige & Speichern ----
+st.subheader("Gesamtübersicht")
 st.dataframe(df)
-
-# Änderungen speichern
 df.to_csv(DATA_PATH, index=False)
