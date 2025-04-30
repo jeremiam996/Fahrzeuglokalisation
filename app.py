@@ -108,7 +108,24 @@ def get_schritte_status(row):
 
 # ---- Gesamtübersicht mit Fortschritt ----
 st.subheader("📊 Gesamtübersicht mit Arbeitsfortschritt")
-df["Offene Schritte"], df["Abgeschlossene Schritte"] = zip(*df.apply(get_schritte_status, axis=1))
+def update_status_und_schritte(row):
+    offene = []
+    erledigt = []
+    for step in ARBEITSSCHRITTE:
+        if step in row:
+            if row[step]:
+                erledigt.append(step)
+            else:
+                offene.append(step)
+    # Status automatisch setzen
+    if len(erledigt) == len(ARBEITSSCHRITTE):
+        row["Status"] = "fertig"
+    elif len(erledigt) > 0:
+        row["Status"] = "in Arbeit"
+    return pd.Series([", ".join(offene), ", ".join(erledigt), row["Status"]])
+
+# Neue Spalten erzeugen + Status aktualisieren
+df[["Offene Schritte", "Abgeschlossene Schritte", "Status"]] = df.apply(update_status_und_schritte, axis=1)
 
 st.dataframe(df[[
     "Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag",
