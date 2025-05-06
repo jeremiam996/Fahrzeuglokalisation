@@ -84,8 +84,7 @@ if uploaded:
         st.error("Fehler beim Import")
         st.exception(e)
 
-# ---- Automatische Tagesplanung ----
-# ---- Automatische und manuelle Tagesplanung ----
+# ---- Tagesplanung ----
 def tagesplanung_durchfuehren():
     kapazitaet_pro_tag = mitarbeiter * STD_PRO_MITARBEITER
     startdatum = heute
@@ -110,15 +109,11 @@ def tagesplanung_durchfuehren():
         else:
             df.at[idx, "Geplanter Tag"] = aktueller_tag
             tag_aufwand += fzg_aufwand
-            df.at[idx, "Geplanter Tag"] = aktueller_tag
-            tag_aufwand += fzg_aufwand
 
-# Direkt beim Laden ausführen
 if "planung_geladen" not in st.session_state:
     tagesplanung_durchfuehren()
     st.session_state.planung_geladen = True
 
-# Optional manuell auslösbar
 if st.sidebar.button("Tagesplanung aktualisieren"):
     tagesplanung_durchfuehren()
 
@@ -154,12 +149,7 @@ for idx, row in heute_rows.iterrows():
     geplant = pd.to_datetime(row["Geplanter Tag"], errors='coerce').date() if pd.notna(row["Geplanter Tag"]) else None
     if geplant == heute and row["Status"] != "fertig":
         with st.expander(f"{row['Modell']} – {row['Kennzeichen']} ({row['Parkplatz']})"):
-            status = st.selectbox(
-                "Status",
-                ["angekommen", "in Arbeit", "fertig"],
-                index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]),
-                key=f"status_{idx}"
-            )
+            status = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"], index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]), key=f"status_{idx}")
             schritte = {}
             for step in ARBEITSSCHRITTE:
                 if step in row:
@@ -170,7 +160,7 @@ for idx, row in heute_rows.iterrows():
 for idx, (status, schritte) in änderungen.items():
     df.at[idx, "Status"] = status
     for step, val in schritte.items():
-        df.at[idx, step] = val, key=f"{step}_{idx}")
+        df.at[idx, step] = val
 
 # ---- Status aktualisieren ----
 def update_status(row):
@@ -216,7 +206,7 @@ st.dataframe(vorschau[["Modell", "Kennzeichen", "Geplanter Tag", "Status"]])
 st.subheader("📋 Gesamtübersicht")
 st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag", "Offene Schritte", "Abgeschlossene Schritte"]])
 
-# ---- Speichern manuell auslösen ----
+# ---- Speichern ----
 if st.button("💾 Änderungen speichern"):
     df.to_csv(DATA_PATH, index=False)
     st.success("Daten gespeichert.")
