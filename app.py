@@ -94,6 +94,7 @@ def tagesplanung_durchfuehren():
     # Alte Planung zurücksetzen
     df["Geplanter Tag"] = ""
 
+    # Fahrzeuge sortiert durchgehen
     offene_fahrzeuge = df[df["Status"] != "fertig"].copy()
     sortierte_indices = offene_fahrzeuge.index.tolist()
 
@@ -101,17 +102,12 @@ def tagesplanung_durchfuehren():
         row = df.loc[idx]
         fzg_aufwand = sum(ARBEITSSCHRITTE[step] for step in ARBEITSSCHRITTE if step in row and not row[step])
 
-        if fzg_aufwand >= kapazitaet_pro_tag:
-            df.at[idx, "Geplanter Tag"] = aktueller_tag
+        while fzg_aufwand > (kapazitaet_pro_tag - tag_aufwand):
             aktueller_tag += datetime.timedelta(days=1)
             tag_aufwand = 0
-        elif tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
-            aktueller_tag += datetime.timedelta(days=1)
-            tag_aufwand = fzg_aufwand
-            df.at[idx, "Geplanter Tag"] = aktueller_tag
-        else:
-            df.at[idx, "Geplanter Tag"] = aktueller_tag
-            tag_aufwand += fzg_aufwand
+
+        df.at[idx, "Geplanter Tag"] = aktueller_tag
+        tag_aufwand += fzg_aufwand
 
 if "planung_geladen" not in st.session_state:
     tagesplanung_durchfuehren()
@@ -193,7 +189,7 @@ for i, zahl in enumerate(range(1, 10)):
     cols[i].markdown(f"**{platz}**<br>{symbol}", unsafe_allow_html=True)
 
 st.markdown("### 📅 Tagesfortschritt")
-heute_df = df[df["Geplanter Tag"] == str(heute)]
+heute_df = df[pd.to_datetime(df["Geplanter Tag"], errors='coerce').dt.date == heute]
 gesamt = len(heute_df)
 fertig = sum(1 for _, row in heute_df.iterrows() if row.get("Status") == "fertig")
 fortschritt = int((fertig / gesamt) * 100) if gesamt > 0 else 0
