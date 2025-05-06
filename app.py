@@ -85,18 +85,19 @@ if uploaded:
         st.exception(e)
 
 # ---- Automatische Tagesplanung ----
-kapazitaet_pro_tag = mitarbeiter * STD_PRO_MITARBEITER
-startdatum = heute
-aktueller_tag = startdatum
-tag_aufwand = 0
+if st.sidebar.button("Tagesplanung aktualisieren"):
+    kapazitaet_pro_tag = mitarbeiter * STD_PRO_MITARBEITER
+    startdatum = heute
+    aktueller_tag = startdatum
+    tag_aufwand = 0
 
-for idx, row in df[df["Status"] != "fertig"].iterrows():
-    fzg_aufwand = sum(ARBEITSSCHRITTE[step] for step in ARBEITSSCHRITTE if step in row and not row[step])
-    if tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
-        aktueller_tag += datetime.timedelta(days=1)
-        tag_aufwand = 0
-    df.at[idx, "Geplanter Tag"] = aktueller_tag
-    tag_aufwand += fzg_aufwand
+    for idx, row in df[df["Status"] != "fertig"].iterrows():
+        fzg_aufwand = sum(ARBEITSSCHRITTE[step] for step in ARBEITSSCHRITTE if step in row and not row[step])
+        if tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
+            aktueller_tag += datetime.timedelta(days=1)
+            tag_aufwand = 0
+        df.at[idx, "Geplanter Tag"] = aktueller_tag
+        tag_aufwand += fzg_aufwand
 
 # ---- Neues Fahrzeug erfassen ----
 st.subheader("🚘 Neues Fahrzeug erfassen")
@@ -163,7 +164,7 @@ for i, zahl in enumerate(range(1, 10)):
 st.markdown("### 📅 Tagesfortschritt")
 heute_df = df[df["Geplanter Tag"] == str(heute)]
 gesamt = len(heute_df)
-fertig = sum(heute_df["Status"] == "fertig")
+fertig = sum(1 for _, row in heute_df.iterrows() if row.get("Status") == "fertig")
 fortschritt = int((fertig / gesamt) * 100) if gesamt > 0 else 0
 st.progress(fortschritt)
 st.write(f"{fertig} von {gesamt} Fahrzeugen abgeschlossen ({fortschritt}%)")
@@ -178,5 +179,6 @@ st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag"
 
 # ---- Speichern ----
 df.to_csv(DATA_PATH, index=False)
+
 
 
