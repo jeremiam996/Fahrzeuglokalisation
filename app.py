@@ -99,17 +99,17 @@ def tagesplanung_durchfuehren():
         row = df.loc[idx]
         fzg_aufwand = sum(ARBEITSSCHRITTE[step] for step in ARBEITSSCHRITTE if step in row and not row[step])
 
-        if fzg_aufwand > kapazitaet_pro_tag:
-            # selbst ein Fahrzeug passt nicht komplett: plane trotzdem einen Tag dafür ein
+        if fzg_aufwand >= kapazitaet_pro_tag:
             df.at[idx, "Geplanter Tag"] = aktueller_tag
             aktueller_tag += datetime.timedelta(days=1)
             tag_aufwand = 0
         elif tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
             aktueller_tag += datetime.timedelta(days=1)
-            tag_aufwand = 0
+            tag_aufwand = fzg_aufwand
+            df.at[idx, "Geplanter Tag"] = aktueller_tag
+        else:
             df.at[idx, "Geplanter Tag"] = aktueller_tag
             tag_aufwand += fzg_aufwand
-        else:
             df.at[idx, "Geplanter Tag"] = aktueller_tag
             tag_aufwand += fzg_aufwand
 
@@ -148,14 +148,24 @@ with st.form("add_vehicle"):
 
 # ---- Tagesbearbeitung ----
 st.subheader("📅 Tagesbearbeitung - heute")
-for idx, row in df.iterrows():
+änderungen = {}
+heute_rows = df.copy()
+for idx, row in heute_rows.iterrows():
     geplant = pd.to_datetime(row["Geplanter Tag"], errors='coerce').date() if pd.notna(row["Geplanter Tag"]) else None
     if geplant == heute and row["Status"] != "fertig":
         with st.expander(f"{row['Modell']} – {row['Kennzeichen']} ({row['Parkplatz']})"):
-            df.at[idx, "Status"] = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"], index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]), key=f"status_{idx}")
+            status = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"], index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]), key=f"status_{idx}")
+            schritte = {}
             for step in ARBEITSSCHRITTE:
                 if step in row:
-                    df.at[idx, step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
+                    schritte[step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
+            änderungen[idx] = (status, schritte)
+
+# Änderungen anwenden
+for idx, (status, schritte) in änderungen.items():
+    df.at[idx, "Status"] = status
+    for step, val in schritte.items():
+        df.at[idx, step] = val, key=f"{step}_{idx}")
 
 # ---- Status aktualisieren ----
 def update_status(row):
