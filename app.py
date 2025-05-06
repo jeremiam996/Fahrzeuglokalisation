@@ -9,10 +9,8 @@ ADMIN_USER = "admin"
 ADMIN_PASS = "passwort123"
 ARBEITSSCHRITTE = {
     "Öl ablassen": 1,
-    "Batterie entfernen": 1,
-    "Flüssigkeiten absaugen": 1.5,
-    "Teile ausbauen": 2,
-    "Dokumentation": 1
+    "Batterie ausbauen": 1,
+    "Räder demontieren": 1
 }
 MODELLE = ["Golf", "Tiguan", "Polo", "Passat", "T-Roc"]
 STD_PRO_MITARBEITER = 7
@@ -50,6 +48,36 @@ df = pd.read_csv(DATA_PATH)
 if not st.session_state.logged_in:
     show_login()
     st.stop()
+
+# ---- Admin-geschützte Funktionen: Import & Planung ----
+if st.session_state.logged_in:
+    st.sidebar.title("🔧 Admin-Einstellungen")
+
+    # Mitarbeitereingabe für Tagesplanung
+    mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende heute", min_value=1, max_value=50, value=6)
+
+    # Excelimport (optional)
+    uploaded = st.file_uploader("Excel-Datei mit Fahrzeugdaten", type=["xlsx", "csv"])
+    if uploaded:
+        try:
+            if uploaded.name.endswith(".xlsx"):
+                imp_df = pd.read_excel(uploaded)
+            else:
+                imp_df = pd.read_csv(uploaded)
+
+            for step in ARBEITSSCHRITTE:
+                if step not in imp_df.columns:
+                    imp_df[step] = False
+            if "Geplanter Tag" not in imp_df.columns:
+                imp_df["Geplanter Tag"] = ""
+
+            df = pd.concat([df, imp_df], ignore_index=True)
+            st.success("Import erfolgreich.")
+        except Exception as e:
+            st.error("Fehler beim Import")
+            st.exception(e)
+else:
+    mitarbeiter = 6  # Standardwert
 
 # ---- Neues Fahrzeug erfassen ----
 st.subheader("🚘 Neues Fahrzeug erfassen")
@@ -94,20 +122,7 @@ for idx, row in df.iterrows():
                 if step in row:
                     df.at[idx, step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
 
-# ---- Arbeitsfortschritt berechnen ----
-def get_schritte_status(row):
-    offene = []
-    erledigt = []
-    for step in ARBEITSSCHRITTE:
-        if step in row:
-            if row[step]:
-                erledigt.append(step)
-            else:
-                offene.append(step)
-    return ", ".join(offene), ", ".join(erledigt)
-
-# ---- Gesamtübersicht mit Fortschritt ----
-st.subheader("📊 Gesamtübersicht mit Arbeitsfortschritt")
+# ---- Arbeitsfortschritt + Status aktualisieren ----
 def update_status_und_schritte(row):
     offene = []
     erledigt = []
@@ -117,21 +132,23 @@ def update_status_und_schritte(row):
                 erledigt.append(step)
             else:
                 offene.append(step)
-    # Status automatisch setzen
     if len(erledigt) == len(ARBEITSSCHRITTE):
         row["Status"] = "fertig"
     elif len(erledigt) > 0:
         row["Status"] = "in Arbeit"
+    else:
+        row["Status"] = "angekommen"
     return pd.Series([", ".join(offene), ", ".join(erledigt), row["Status"]])
 
-# Neue Spalten erzeugen + Status aktualisieren
 df[["Offene Schritte", "Abgeschlossene Schritte", "Status"]] = df.apply(update_status_und_schritte, axis=1)
 
+# ---- Gesamtübersicht ----
+st.subheader("📊 Gesamtübersicht mit Arbeitsfortschritt")
 st.dataframe(df[[
     "Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag",
     "Offene Schritte", "Abgeschlossene Schritte"
 ]])
 
-# ---- Speichern ----
 df.to_csv(DATA_PATH, index=False)
+
 
