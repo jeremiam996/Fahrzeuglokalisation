@@ -46,6 +46,11 @@ ensure_csv()
 df = pd.read_csv(DATA_PATH)
 heute = datetime.date.today()
 
+# ---- Sicherstellen, dass alle Arbeitsschritt-Spalten existieren ----
+for step in ARBEITSSCHRITTE:
+    if step not in df.columns:
+        df[step] = False
+
 if not st.session_state.logged_in:
     show_login()
     st.stop()
@@ -125,7 +130,8 @@ for idx, row in df.iterrows():
         with st.expander(f"{row['Modell']} – {row['Kennzeichen']} ({row['Parkplatz']})"):
             df.at[idx, "Status"] = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"], index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]), key=f"status_{idx}")
             for step in ARBEITSSCHRITTE:
-                df.at[idx, step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
+                if step in row:
+                    df.at[idx, step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
 
 # ---- Status aktualisieren ----
 def update_status(row):
@@ -167,9 +173,10 @@ vorschau = df[pd.to_datetime(df["Geplanter Tag"], errors='coerce') > pd.to_datet
 st.dataframe(vorschau[["Modell", "Kennzeichen", "Geplanter Tag", "Status"]])
 
 # ---- Gesamtübersicht ----
-st.subheader("\U0001f4cb Gesamtübersicht")
+st.subheader("📋 Gesamtübersicht")
 st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag", "Offene Schritte", "Abgeschlossene Schritte"]])
 
 # ---- Speichern ----
 df.to_csv(DATA_PATH, index=False)
+
 
