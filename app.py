@@ -92,13 +92,26 @@ def tagesplanung_durchfuehren():
     aktueller_tag = startdatum
     tag_aufwand = 0
 
-    for idx, row in df[df["Status"] != "fertig"].iterrows():
+    offene_fahrzeuge = df[df["Status"] != "fertig"].copy()
+    sortierte_indices = offene_fahrzeuge.index.tolist()
+
+    for idx in sortierte_indices:
+        row = df.loc[idx]
         fzg_aufwand = sum(ARBEITSSCHRITTE[step] for step in ARBEITSSCHRITTE if step in row and not row[step])
-        if tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
+
+        if fzg_aufwand > kapazitaet_pro_tag:
+            # selbst ein Fahrzeug passt nicht komplett: plane trotzdem einen Tag dafür ein
+            df.at[idx, "Geplanter Tag"] = aktueller_tag
             aktueller_tag += datetime.timedelta(days=1)
             tag_aufwand = 0
-        df.at[idx, "Geplanter Tag"] = aktueller_tag
-        tag_aufwand += fzg_aufwand
+        elif tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
+            aktueller_tag += datetime.timedelta(days=1)
+            tag_aufwand = 0
+            df.at[idx, "Geplanter Tag"] = aktueller_tag
+            tag_aufwand += fzg_aufwand
+        else:
+            df.at[idx, "Geplanter Tag"] = aktueller_tag
+            tag_aufwand += fzg_aufwand
 
 # Direkt beim Laden ausführen
 if "planung_geladen" not in st.session_state:
@@ -176,6 +189,7 @@ heute_df = df[df["Geplanter Tag"] == str(heute)]
 gesamt = len(heute_df)
 fertig = sum(1 for _, row in heute_df.iterrows() if row.get("Status") == "fertig")
 fortschritt = int((fertig / gesamt) * 100) if gesamt > 0 else 0
+fortschritt = max(0, min(fortschritt, 100))
 st.progress(fortschritt)
 st.write(f"{fertig} von {gesamt} Fahrzeugen abgeschlossen ({fortschritt}%)")
 
@@ -187,8 +201,11 @@ st.dataframe(vorschau[["Modell", "Kennzeichen", "Geplanter Tag", "Status"]])
 st.subheader("📋 Gesamtübersicht")
 st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag", "Offene Schritte", "Abgeschlossene Schritte"]])
 
-# ---- Speichern ----
-df.to_csv(DATA_PATH, index=False)
+# ---- Speichern manuell auslösen ----
+if st.button("💾 Änderungen speichern"):
+    df.to_csv(DATA_PATH, index=False)
+    st.success("Daten gespeichert.")
+
 
 
 
