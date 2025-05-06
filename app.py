@@ -91,6 +91,9 @@ def tagesplanung_durchfuehren():
     aktueller_tag = startdatum
     tag_aufwand = 0
 
+    # Alte Planung zurücksetzen
+    df["Geplanter Tag"] = ""
+
     offene_fahrzeuge = df[df["Status"] != "fertig"].copy()
     sortierte_indices = offene_fahrzeuge.index.tolist()
 
@@ -210,6 +213,7 @@ st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag"
 if st.button("💾 Änderungen speichern"):
     df.to_csv(DATA_PATH, index=False)
     st.success("Daten gespeichert.")
+
 
 
 
