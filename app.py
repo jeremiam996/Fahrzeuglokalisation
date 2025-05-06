@@ -33,7 +33,7 @@ def show_login():
             else:
                 st.error("Falscher Benutzername oder Passwort.")
 
-# ---- CSV-Datei vorbereiten ----
+# ---- CSV vorbereiten ----
 def ensure_csv():
     if not os.path.exists(DATA_PATH):
         df = pd.DataFrame(columns=["Modell", "Kennzeichen", "Ankunftsdatum", "Status", "Parkplatz", "Geplanter Tag"] + list(ARBEITSSCHRITTE.keys()))
@@ -49,14 +49,11 @@ if not st.session_state.logged_in:
     show_login()
     st.stop()
 
-# ---- Admin-geschützte Funktionen: Import & Planung ----
+# ---- Admin-geschützte Funktionen: Planung + Import ----
 if st.session_state.logged_in:
     st.sidebar.title("🔧 Admin-Einstellungen")
+    mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende", min_value=1, max_value=50, value=6)
 
-    # Mitarbeitereingabe für Tagesplanung
-    mitarbeiter = st.sidebar.number_input("Verfügbare Mitarbeitende heute", min_value=1, max_value=50, value=6)
-
-    # Excelimport (optional)
     uploaded = st.file_uploader("Excel-Datei mit Fahrzeugdaten", type=["xlsx", "csv"])
     if uploaded:
         try:
@@ -77,7 +74,28 @@ if st.session_state.logged_in:
             st.error("Fehler beim Import")
             st.exception(e)
 else:
-    mitarbeiter = 6  # Standardwert
+    mitarbeiter = 6
+
+# ---- Automatische Tagesplanung ----
+kapazitaet_pro_tag = mitarbeiter * STD_PRO_MITARBEITER
+startdatum = datetime.date.today()
+aktueller_tag = startdatum
+tag_aufwand = 0
+
+offene_df = df[df["Status"] != "fertig"].copy()
+
+for idx, row in offene_df.iterrows():
+    fzg_aufwand = 0
+    for step, dauer in ARBEITSSCHRITTE.items():
+        if step in row and not row[step]:
+            fzg_aufwand += dauer
+
+    if tag_aufwand + fzg_aufwand > kapazitaet_pro_tag:
+        aktueller_tag += datetime.timedelta(days=1)
+        tag_aufwand = 0
+
+    df.at[idx, "Geplanter Tag"] = aktueller_tag
+    tag_aufwand += fzg_aufwand
 
 # ---- Neues Fahrzeug erfassen ----
 st.subheader("🚘 Neues Fahrzeug erfassen")
@@ -103,7 +121,7 @@ with st.form("add_vehicle"):
         df.to_csv(DATA_PATH, index=False)
         st.success("Fahrzeug gespeichert!")
 
-# ---- Tagesbearbeitung: Heute geplante Fahrzeuge ----
+# ---- Tagesbearbeitung – heute ----
 st.subheader("📅 Tagesbearbeitung – heute")
 heute = datetime.date.today()
 
@@ -122,7 +140,7 @@ for idx, row in df.iterrows():
                 if step in row:
                     df.at[idx, step] = st.checkbox(f"{step}", value=bool(row[step]), key=f"{step}_{idx}")
 
-# ---- Arbeitsfortschritt + Status aktualisieren ----
+# ---- Status + Arbeitsschritte aktualisieren ----
 def update_status_und_schritte(row):
     offene = []
     erledigt = []
