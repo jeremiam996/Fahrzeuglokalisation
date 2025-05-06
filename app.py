@@ -154,7 +154,12 @@ for idx, row in heute_rows.iterrows():
     geplant = pd.to_datetime(row["Geplanter Tag"], errors='coerce').date() if pd.notna(row["Geplanter Tag"]) else None
     if geplant == heute and row["Status"] != "fertig":
         with st.expander(f"{row['Modell']} – {row['Kennzeichen']} ({row['Parkplatz']})"):
-            status = st.selectbox("Status", ["angekommen", "in Arbeit", "fertig"], index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]), key=f"status_{idx}")
+            status = st.selectbox(
+                "Status",
+                ["angekommen", "in Arbeit", "fertig"],
+                index=["angekommen", "in Arbeit", "fertig"].index(row["Status"]),
+                key=f"status_{idx}"
+            )
             schritte = {}
             for step in ARBEITSSCHRITTE:
                 if step in row:
@@ -215,6 +220,7 @@ st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag"
 if st.button("💾 Änderungen speichern"):
     df.to_csv(DATA_PATH, index=False)
     st.success("Daten gespeichert.")
+
 
 
 
