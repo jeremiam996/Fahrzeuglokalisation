@@ -85,7 +85,8 @@ if uploaded:
         st.exception(e)
 
 # ---- Automatische Tagesplanung ----
-if st.sidebar.button("Tagesplanung aktualisieren"):
+# ---- Automatische und manuelle Tagesplanung ----
+def tagesplanung_durchfuehren():
     kapazitaet_pro_tag = mitarbeiter * STD_PRO_MITARBEITER
     startdatum = heute
     aktueller_tag = startdatum
@@ -98,6 +99,15 @@ if st.sidebar.button("Tagesplanung aktualisieren"):
             tag_aufwand = 0
         df.at[idx, "Geplanter Tag"] = aktueller_tag
         tag_aufwand += fzg_aufwand
+
+# Direkt beim Laden ausführen
+if "planung_geladen" not in st.session_state:
+    tagesplanung_durchfuehren()
+    st.session_state.planung_geladen = True
+
+# Optional manuell auslösbar
+if st.sidebar.button("Tagesplanung aktualisieren"):
+    tagesplanung_durchfuehren()
 
 # ---- Neues Fahrzeug erfassen ----
 st.subheader("🚘 Neues Fahrzeug erfassen")
@@ -179,6 +189,7 @@ st.dataframe(df[["Modell", "Kennzeichen", "Status", "Parkplatz", "Geplanter Tag"
 
 # ---- Speichern ----
 df.to_csv(DATA_PATH, index=False)
+
 
 
 
